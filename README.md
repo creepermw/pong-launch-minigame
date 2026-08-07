@@ -16,8 +16,20 @@ playable retro **Pong** match against an AI.
   can never lose during the fade-out).
 - **Miss the ball** (it passes your right paddle) → the mod throws a custom runtime
   exception (`PongLoseException`) on the render thread, the default crash handler
-  writes a crash report — complete with **five repetitions of 菜就多练** — and the
-  game exits. No save is touched, no file is tampered with.
+  writes a crash report — a full **practice report card** with your stats, **five
+  repetitions of 菜就多练**, a "菜" glyph spelled out of the phrase itself, and a
+  random piece of advice — then the game exits. No save is touched, no file is tampered with.
+
+## v1.1.0 features
+
+- **Victory meter**: a loading-progress bar (real `ReloadInstance` progress) at the
+  bottom of the screen — you can see exactly how much longer you must survive.
+- **Ball trail**: fading afterimages behind the ball for that retro-arcade feel.
+- **AI taunts**: the AI occasionally floats taunts like 「菜就多练」「就这？」 above
+  its paddle when it returns the ball.
+- **Crash report variety**: every crash includes a practice report card (hits, max
+  ball speed, survival time), a 菜 glyph built from the characters of 「菜就多练」,
+  and a randomly chosen piece of advice.
 
 ## Requirements
 
@@ -31,7 +43,7 @@ playable retro **Pong** match against an AI.
 ./gradlew.bat build
 ```
 
-The mod jar is produced at `build/libs/pong-launch-minigame-1.0.0.jar`.
+The mod jar is produced at `build/libs/pong-launch-minigame-1.1.0.jar`.
 
 ## Install
 

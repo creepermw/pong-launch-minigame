@@ -41,6 +41,7 @@ public final class PongGame {
     private static final float AI_NOISE = 12.0f;      // px of imperfection so the AI is beatable
     private static final float MAX_BOUNCE_ANGLE_DEG = 60.0f;
     private static final float RESPAWN_ANGLE_DEG = 40.0f;
+    private static final int TRAIL_LENGTH = 10;       // fading afterimages
 
     private final Random random = new Random();
 
@@ -61,6 +62,13 @@ public final class PongGame {
     private float rightPaddleY;
 
     private int hits;
+    private int aiHits;
+    private long startNano = -1L;
+
+    // ring buffer of recent ball positions (oldest at trailIndex)
+    private final float[] trailX = new float[TRAIL_LENGTH];
+    private final float[] trailY = new float[TRAIL_LENGTH];
+    private int trailIndex;
 
     /** Called every frame with the current gui-scaled window size. */
     public void setViewport(float w, float h) {
@@ -81,6 +89,7 @@ public final class PongGame {
             return;
         }
         state = loadingComplete ? State.FROZEN : State.ACTIVE;
+        startNano = System.nanoTime();
         respawn(true);
     }
 
@@ -157,11 +166,19 @@ public final class PongGame {
             lost = true;
             state = State.FROZEN; // stop physics; the renderer throws PongLoseException.
         }
+
+        // Record the ball position for the fading trail.
+        trailX[trailIndex] = ballX;
+        trailY[trailIndex] = ballY;
+        trailIndex = (trailIndex + 1) % TRAIL_LENGTH;
     }
 
     private void bounce(float newX, float dir, float paddleY) {
         ballX = newX;
         hits++;
+        if (dir > 0.0f) {
+            aiHits++; // left (AI) paddle got the ball
+        }
         ballSpeed = Math.min(ballSpeed * SPEED_UP, MAX_SPEED);
         float rel = (ballY - (paddleY + PADDLE_HEIGHT / 2.0f)) / (PADDLE_HEIGHT / 2.0f);
         rel = clamp(rel, -1.0f, 1.0f);
@@ -227,5 +244,29 @@ public final class PongGame {
 
     public int getHits() {
         return hits;
+    }
+
+    public int getAiHits() {
+        return aiHits;
+    }
+
+    public float getSurvivalSeconds() {
+        return startNano < 0L ? 0.0f : (System.nanoTime() - startNano) / 1_000_000_000.0f;
+    }
+
+    public int getTrailLength() {
+        return TRAIL_LENGTH;
+    }
+
+    public int getTrailIndex() {
+        return trailIndex;
+    }
+
+    public float getTrailX(int i) {
+        return trailX[i];
+    }
+
+    public float getTrailY(int i) {
+        return trailY[i];
     }
 }

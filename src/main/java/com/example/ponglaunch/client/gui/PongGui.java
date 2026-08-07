@@ -42,6 +42,20 @@ public final class PongGui extends Gui {
     private static final int COLOR_DIM = 0xFF888888;
 
     private final PongGame game = new PongGame();
+    private final java.util.Random random = new java.util.Random();
+
+    /** Real loading progress (0..1) fed from the overlay's reload instance. -1 = unknown. */
+    private float loadingProgress = -1.0f;
+    private float progressLogTimer;
+
+    // AI taunt state
+    private static final String[] TAUNTS = {"菜就多练", "就这？", "再来再来", "就这水平？", "让让你", "多练练"};
+    private static final float TAUNT_COOLDOWN = 2.5f;
+    private static final float TAUNT_LIFETIME = 1.4f;
+    private String tauntText;
+    private float tauntTimer;
+    private float tauntCooldown;
+    private int lastAiHits;
 
     /**
      * Set (from any thread) by the reload-listener callback the moment the
@@ -95,6 +109,9 @@ public final class PongGui extends Gui {
         double mouseGuiY = readRawMouseGuiY(mc, h);
         game.tick(dt, (float) mouseGuiY);
 
+        updateTaunt(dt);
+        logProgress(dt);
+
         if (game.isActive() || game.isFrozen()) {
             draw(guiGraphics, mc, w, h);
             logFps(dt, (float) mouseGuiY);
@@ -103,7 +120,43 @@ public final class PongGui extends Gui {
         // Loss branch: throw on the render thread - the default crash handler takes it from here.
         if (game.isLost()) {
             PongLaunchMod.LOGGER.error("[Pong] LOSS TRIGGERED: ball escaped the right paddle! {}", PongLoseException.TROLL);
-            throw new PongLoseException();
+            throw new PongLoseException(game.getHits(), game.getBallSpeed(), game.getSurvivalSeconds());
+        }
+    }
+
+    /** Feeds the real loading progress (0..1) from the overlay's reload instance. */
+    public void setLoadingProgress(float progress) {
+        this.loadingProgress = progress;
+    }
+
+    /** Pops an AI taunt when the AI hits the ball, respecting the cooldown. */
+    private void updateTaunt(float dt) {
+        if (game.getAiHits() > lastAiHits) {
+            lastAiHits = game.getAiHits();
+            if (tauntCooldown <= 0.0f) {
+                tauntText = TAUNTS[random.nextInt(TAUNTS.length)];
+                tauntTimer = TAUNT_LIFETIME;
+                tauntCooldown = TAUNT_COOLDOWN;
+                PongLaunchMod.LOGGER.debug("[Pong] AI taunt: {}", tauntText);
+            }
+        }
+        if (tauntCooldown > 0.0f) {
+            tauntCooldown -= dt;
+        }
+        if (tauntTimer > 0.0f) {
+            tauntTimer -= dt;
+        }
+    }
+
+    /** Debug-level progress telemetry (invisible at the production INFO level). */
+    private void logProgress(float dt) {
+        if (loadingProgress < 0.0f) {
+            return;
+        }
+        progressLogTimer += dt;
+        if (progressLogTimer >= 2.0f) {
+            progressLogTimer = 0.0f;
+            PongLaunchMod.LOGGER.debug("[Pong] loading progress {}%", Math.round(loadingProgress * 100.0f));
         }
     }
 
@@ -163,11 +216,30 @@ public final class PongGui extends Gui {
         gg.fill(rightX, (int) game.getRightPaddleY(),
                 rightX + (int) PongGame.PADDLE_WIDTH, (int) (game.getRightPaddleY() + PongGame.PADDLE_HEIGHT), COLOR_PLAYER);
 
-        // Ball.
+        // Ball trail: fading afterimages (oldest dimmest, newest brightest).
         int br = (int) (PongGame.BALL_RADIUS * 2.0f);
+        int trailLen = game.getTrailLength();
+        int trailStart = game.getTrailIndex();
+        for (int i = 0; i < trailLen; i++) {
+            int idx = (trailStart + i) % trailLen;
+            int alpha = 28 + (132 * (i + 1)) / trailLen; // ~28..160
+            int tx = (int) (game.getTrailX(idx) - PongGame.BALL_RADIUS);
+            int ty = (int) (game.getTrailY(idx) - PongGame.BALL_RADIUS);
+            gg.fill(tx, ty, tx + br, ty + br, (alpha << 24) | 0xFFFFFF);
+        }
+
+        // Ball.
         int bx = (int) (game.getBallX() - PongGame.BALL_RADIUS);
         int by = (int) (game.getBallY() - PongGame.BALL_RADIUS);
         gg.fill(bx, by, bx + br, by + br, COLOR_BALL);
+
+        // AI taunt: floating text near the left paddle.
+        if (tauntText != null && tauntTimer > 0.0f) {
+            float rise = (TAUNT_LIFETIME - tauntTimer) * 10.0f; // floats upward
+            int ty = (int) (game.getLeftPaddleY() - 12.0f - rise);
+            int alpha = tauntTimer < 0.4f ? (int) (255.0f * tauntTimer / 0.4f) : 255;
+            gg.drawString(font, tauntText, leftX + (int) PongGame.PADDLE_WIDTH + 6, ty, (alpha << 24) | 0xFF5050);
+        }
 
         // HUD text.
         String title = "PONG";
@@ -175,9 +247,21 @@ public final class PongGui extends Gui {
         String sub = "SURVIVE UNTIL THE MAIN MENU";
         gg.drawString(font, sub, (int) (w / 2.0f - font.width(sub) / 2.0f), 18, COLOR_GRAY);
         String hint = "MOVE MOUSE TO CONTROL THE RIGHT PADDLE";
-        gg.drawString(font, hint, (int) (w / 2.0f - font.width(hint) / 2.0f), (int) h - 22, COLOR_DIM);
+        gg.drawString(font, hint, (int) (w / 2.0f - font.width(hint) / 2.0f), (int) h - 34, COLOR_DIM);
         String hits = "HITS: " + game.getHits();
         gg.drawString(font, hits, 6, 6, COLOR_GRAY);
+
+        // Real loading progress bar (victory meter).
+        if (loadingProgress >= 0.0f) {
+            float prog = Math.max(0.0f, Math.min(1.0f, loadingProgress));
+            int barW = (int) (w * 0.45f);
+            int barX = (int) (w / 2.0f - barW / 2.0f);
+            int barY = (int) h - 16;
+            gg.fill(barX, barY, barX + barW, barY + 5, 0x66FFFFFF);          // track
+            gg.fill(barX, barY, barX + (int) (barW * prog), barY + 5, COLOR_PLAYER); // fill
+            String pct = "LOADING " + Math.round(prog * 100.0f) + "%";
+            gg.drawString(font, pct, (int) (w / 2.0f - font.width(pct) / 2.0f), (int) h - 24, COLOR_GRAY);
+        }
 
         gg.flush();
     }
