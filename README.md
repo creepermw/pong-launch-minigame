@@ -11,14 +11,22 @@ playable retro **Pong** match against an AI.
 - While the game loads (after the Mojang logo, before the main menu), a full-screen
   Pong match starts automatically.
 - **You** control the right paddle with the mouse; the **AI** controls the left one.
-- **Survive until the main menu appears** → the minigame ends gracefully and the game
-  continues normally (the ball physics freeze the moment the loading finishes, so you
-  can never lose during the fade-out).
+- **Survive at least 20 seconds** → the minigame always runs for a minimum of 20s,
+  even if the game finished loading much earlier: once the main menu appears, the
+  minigame keeps running on top of it ("THE MENU IS READY - SURVIVE Ns MORE") until
+  the 20s are up, then ends gracefully. On slow loads the game simply ends when the
+  menu appears (which is already past 20s).
 - **Miss the ball** (it passes your right paddle) → the mod throws a custom runtime
   exception (`PongLoseException`) on the render thread, the default crash handler
   writes a crash report — a full **practice report card** with your stats, **five
   repetitions of 菜就多练**, a "菜" glyph spelled out of the phrase itself, and a
   random piece of advice — then the game exits. No save is touched, no file is tampered with.
+
+## v1.2.0 features
+
+- **Minimum 20s play time**: the minigame cannot end normally before 20 seconds have
+  elapsed, even if the loading screen finished long before. The game keeps running
+  (playable, still losable) on top of the main menu, with a "SURVIVE Ns MORE" counter.
 
 ## v1.1.0 features
 

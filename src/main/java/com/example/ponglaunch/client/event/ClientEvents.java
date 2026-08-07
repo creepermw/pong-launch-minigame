@@ -3,6 +3,7 @@ package com.example.ponglaunch.client.event;
 import com.example.ponglaunch.PongLaunchMod;
 import com.example.ponglaunch.client.PongLaunchClient;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.screens.LoadingOverlay;
 import net.minecraft.client.gui.screens.TitleScreen;
 import net.minecraft.server.packs.resources.PreparableReloadListener;
 import net.minecraft.server.packs.resources.ResourceManager;
@@ -17,19 +18,20 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 
 /**
- * Win-branch detection + loading-completion hook.
+ * Win-branch detection + loading-completion hook + extended-play rendering.
  *
  * <ul>
  *   <li><b>Forge bus</b> - {@link ScreenEvent.Opening} fires right before any screen is
- *       opened. When the opened screen is the main menu ({@link TitleScreen}, set by the
- *       LoadingOverlay once the initial resource reload completes), the minigame ends
- *       gracefully (win branch, highest priority - it never crashes). Note: the plan's
- *       "GuiOpenEvent / ScreenOpenEvent" names do not exist in 1.20.1; the correct event
- *       is {@link ScreenEvent.Opening} with {@link ScreenEvent.Opening#getNewScreen()}.</li>
+ *       opened. When the opened screen is the main menu ({@link TitleScreen}), the minigame
+ *       starts its end sequence (deferred until the minimum play time has elapsed). Note:
+ *       the plan's "GuiOpenEvent / ScreenOpenEvent" names do not exist in 1.20.1; the correct
+ *       event is {@link ScreenEvent.Opening} with {@link ScreenEvent.Opening#getNewScreen()}.</li>
+ *   <li><b>Forge bus</b> - {@link ScreenEvent.Render.Post} keeps the minigame rendering on
+ *       top of the main menu after the loading overlay has gone, until the minimum play time
+ *       (20s) is reached - "the menu is ready, but you still have to survive".</li>
  *   <li><b>Mod bus</b> - {@link RegisterClientReloadListenersEvent} registers a vanilla
  *       {@link PreparableReloadListener}; its {@code reload} future completes when the
- *       whole initial resource reload is done, which freezes the minigame so no loss can
- *       occur during the overlay fade-out (guarantees the "title screen wins" rule).</li>
+ *       whole initial resource reload is done.</li>
  * </ul>
  */
 public final class ClientEvents {
@@ -49,6 +51,15 @@ public final class ClientEvents {
                 PongLaunchClient.pongGui().onTitleScreen();
             }
         }
+
+        /** Extended play: draw the minigame over the main menu once the overlay is gone. */
+        @SubscribeEvent
+        public static void onScreenRenderPost(ScreenEvent.Render.Post event) {
+            if (event.getScreen() instanceof TitleScreen
+                    && !(Minecraft.getInstance().getOverlay() instanceof LoadingOverlay)) {
+                PongLaunchClient.pongGui().render(event.getGuiGraphics(), event.getPartialTick());
+            }
+        }
     }
 
     @Mod.EventBusSubscriber(modid = PongLaunchMod.MODID, bus = Mod.EventBusSubscriber.Bus.MOD, value = Dist.CLIENT)
@@ -62,7 +73,7 @@ public final class ClientEvents {
         }
     }
 
-    /** Freezes the minigame the instant the initial resource reload completes. */
+    /** Signals that the initial resource reload completed (the game keeps playing). */
     private static final class PongReloadListener implements PreparableReloadListener {
         @Override
         public CompletableFuture<Void> reload(PreparationBarrier barrier, ResourceManager resourceManager,

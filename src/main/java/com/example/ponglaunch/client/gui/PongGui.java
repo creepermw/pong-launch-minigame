@@ -47,6 +47,7 @@ public final class PongGui extends Gui {
     /** Real loading progress (0..1) fed from the overlay's reload instance. -1 = unknown. */
     private float loadingProgress = -1.0f;
     private float progressLogTimer;
+    private boolean titleSeen;
 
     // AI taunt state
     private static final String[] TAUNTS = {"菜就多练", "就这？", "再来再来", "就这水平？", "让让你", "多练练"};
@@ -81,16 +82,27 @@ public final class PongGui extends Gui {
     public void render(GuiGraphics guiGraphics, float partialTick) {
         Minecraft mc = Minecraft.getInstance();
 
-        // Win branch: once the TitleScreen has appeared we never draw again.
         if (game.isFinished()) {
             return;
         }
-        // Only render while the launch LoadingOverlay is on screen.
-        if (!(mc.getOverlay() instanceof LoadingOverlay)) {
+
+        boolean overlayPhase = mc.getOverlay() instanceof LoadingOverlay;
+        boolean extendedPhase = titleSeen && mc.screen instanceof TitleScreen;
+
+        // If the player has left the (covered) main menu after the loading finished,
+        // end the game gracefully - they moved on.
+        if (titleSeen && !overlayPhase && !(mc.screen instanceof TitleScreen)) {
+            finishWin("Player left the loading-screen game");
+            return;
+        }
+        // Render only during the launch overlay, or during the extended play phase
+        // drawn on top of the main menu.
+        if (!overlayPhase && !extendedPhase) {
             return;
         }
 
-        // Freeze the instant loading completes (idempotent).
+        // The loading may have completed; the game keeps running until the
+        // minimum play time regardless.
         if (loadingComplete) {
             game.markLoadingComplete();
         }
@@ -111,8 +123,9 @@ public final class PongGui extends Gui {
 
         updateTaunt(dt);
         logProgress(dt);
+        checkWin();
 
-        if (game.isActive() || game.isFrozen()) {
+        if (game.isActive()) {
             draw(guiGraphics, mc, w, h);
             logFps(dt, (float) mouseGuiY);
         }
@@ -163,17 +176,40 @@ public final class PongGui extends Gui {
     /** Called by the reload listener the moment the initial resource reload completes. */
     public void onLoadingComplete() {
         this.loadingComplete = true;
-        PongLaunchMod.LOGGER.info("[Pong] Resource reload complete -> freezing Pong (win branch armed, loss disabled).");
+        PongLaunchMod.LOGGER.info("[Pong] Resource reload complete -> extended play until {}s minimum.",
+                Math.round(PongGame.MIN_PLAY_SECONDS));
     }
 
-    /** Called from {@code ScreenEvent.Opening} when the main menu ({@link TitleScreen}) appears. */
+    /**
+     * Called from {@code ScreenEvent.Opening} when the main menu ({@link TitleScreen}) appears.
+     * The game does not end yet: it keeps running on top of the menu until the minimum
+     * play time has been reached.
+     */
     public void onTitleScreen() {
         if (game.isFinished()) {
             return;
         }
+        titleSeen = true;
+        PongLaunchMod.LOGGER.info("[Pong] TitleScreen detected at {}s - extended play until {}s.",
+                String.format("%.1f", game.getSurvivalSeconds()), Math.round(PongGame.MIN_PLAY_SECONDS));
+        checkWin();
+    }
+
+    /** Ends the game (win) once the title has appeared AND the minimum play time elapsed. */
+    private void checkWin() {
+        if (game.isFinished() || !titleSeen) {
+            return;
+        }
+        if (game.getSurvivalSeconds() >= PongGame.MIN_PLAY_SECONDS) {
+            finishWin("Minigame complete - Player SURVIVED");
+        }
+    }
+
+    private void finishWin(String reason) {
         game.win();
-        PongLaunchMod.LOGGER.info("[Pong] TitleScreen detected -> Pong ended. Player SURVIVED! (hits={}, ballSpeed={})",
-                game.getHits(), game.getBallSpeed());
+        PongLaunchMod.LOGGER.info("[Pong] {} (hits={}, survived={}s, ballSpeed={})",
+                reason, game.getHits(),
+                String.format("%.1f", game.getSurvivalSeconds()), Math.round(game.getBallSpeed()));
     }
 
     private void draw(GuiGraphics gg, Minecraft mc, float w, float h) {
@@ -244,7 +280,14 @@ public final class PongGui extends Gui {
         // HUD text.
         String title = "PONG";
         gg.drawString(font, title, (int) (w / 2.0f - font.width(title) / 2.0f), 6, COLOR_WHITE);
-        String sub = "SURVIVE UNTIL THE MAIN MENU";
+        boolean extended = titleSeen && !(Minecraft.getInstance().getOverlay() instanceof LoadingOverlay);
+        String sub;
+        if (extended) {
+            int remain = Math.max(0, Math.round(PongGame.MIN_PLAY_SECONDS - game.getSurvivalSeconds()));
+            sub = "THE MENU IS READY - SURVIVE " + remain + "s MORE";
+        } else {
+            sub = "SURVIVE UNTIL THE MAIN MENU";
+        }
         gg.drawString(font, sub, (int) (w / 2.0f - font.width(sub) / 2.0f), 18, COLOR_GRAY);
         String hint = "MOVE MOUSE TO CONTROL THE RIGHT PADDLE";
         gg.drawString(font, hint, (int) (w / 2.0f - font.width(hint) / 2.0f), (int) h - 34, COLOR_DIM);

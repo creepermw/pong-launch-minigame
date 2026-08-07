@@ -20,11 +20,11 @@ public final class PongGame {
     public enum State {
         /** Not started yet (no LoadingOverlay render observed). */
         IDLE,
-        /** Playing on the loading screen. */
+        /** Playing on the loading screen (and during extended play on the title screen). */
         ACTIVE,
-        /** Loading finished / fade-out phase: physics frozen, loss disabled, waiting for the title. */
+        /** Physics stopped after a loss (the renderer throws PongLoseException). */
         FROZEN,
-        /** TitleScreen appeared: game over, win branch, never runs again. */
+        /** Minigame won: title seen + minimum play time reached. */
         WON
     }
 
@@ -33,6 +33,9 @@ public final class PongGame {
     public static final float PADDLE_HEIGHT = 48.0f;
     public static final float PADDLE_MARGIN = 14.0f;
     public static final float BALL_RADIUS = 3.5f;
+
+    /** The minigame always runs at least this long, even if the game finished loading earlier. */
+    public static final float MIN_PLAY_SECONDS = 20.0f;
 
     private static final float BASE_SPEED = 200.0f;
     private static final float MAX_SPEED = 380.0f;
@@ -88,22 +91,23 @@ public final class PongGame {
         if (state != State.IDLE) {
             return;
         }
-        state = loadingComplete ? State.FROZEN : State.ACTIVE;
+        state = State.ACTIVE;
         startNano = System.nanoTime();
         respawn(true);
     }
 
-    /** Called when the initial resource reload completes (fade-out begins). */
+    /**
+     * Called when the initial resource reload completes. The game is NOT frozen:
+     * it keeps running until the minimum play time ({@link #MIN_PLAY_SECONDS}) has
+     * elapsed, even after the main menu has appeared.
+     */
     public void markLoadingComplete() {
         this.loadingComplete = true;
-        if (state == State.ACTIVE) {
-            state = State.FROZEN; // freeze physics: no loss possible during fade-out
-        }
     }
 
-    /** Called when the TitleScreen is detected. */
+    /** Called when the minigame is won (title seen + minimum play time reached). */
     public void win() {
-        if (state == State.ACTIVE || state == State.FROZEN) {
+        if (state == State.ACTIVE) {
             state = State.WON;
         }
     }
@@ -208,10 +212,6 @@ public final class PongGame {
 
     public boolean isActive() {
         return state == State.ACTIVE;
-    }
-
-    public boolean isFrozen() {
-        return state == State.FROZEN;
     }
 
     public boolean isFinished() {
