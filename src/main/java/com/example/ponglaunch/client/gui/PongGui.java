@@ -218,19 +218,23 @@ public final class PongGui extends Gui {
             return; // fonts not ready yet - skip text, still safe
         }
 
-        // The ForgeLoadingOverlay leaves a Y-up framebuffer-space projection active
-        // after its render body. Under it, our Y-down gui-space drawing would be
-        // vertically flipped and only cover part of the screen. Set a Y-down
-        // gui-scaled projection for the minigame drawing and restore the previous
-        // one afterwards. The (0.1, -0.1) near/far mirrors Forge's own overlay
-        // ortho so z=0 vertices are not clipped.
+        // The surrounding context (ForgeLoadingOverlay render body, or a screen's
+        // render pass) can leave a non-identity projection/modelview/pose. Reset all
+        // three to the baseline so the minigame draws full-screen, right-side-up,
+        // regardless of where the hook fires; restore everything afterwards.
         Matrix4f previousProjection = new Matrix4f(RenderSystem.getProjectionMatrix());
+        Matrix4f previousModelView = new Matrix4f(RenderSystem.getModelViewMatrix());
         RenderSystem.setProjectionMatrix(
                 new Matrix4f().setOrtho(0.0F, w, h, 0.0F, 0.1F, -0.1F),
                 VertexSorting.DISTANCE_TO_ORIGIN);
+        RenderSystem.getModelViewMatrix().identity();
+        gg.pose().pushPose();
+        gg.pose().setIdentity();
         try {
             drawContent(gg, font, w, h);
         } finally {
+            gg.pose().popPose();
+            RenderSystem.getModelViewMatrix().set(previousModelView);
             RenderSystem.setProjectionMatrix(previousProjection, VertexSorting.DISTANCE_TO_ORIGIN);
         }
     }
