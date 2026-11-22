@@ -15,7 +15,8 @@ playable retro **Pong** match against an AI.
   even if the game finished loading much earlier: once the main menu appears, the
   minigame keeps running on top of it ("THE MENU IS READY - SURVIVE Ns MORE") until
   the 20s are up, then ends gracefully. On slow loads the game simply ends when the
-  menu appears (which is already past 20s).
+  menu appears (which is already past 20s). Menu clicks and key presses are blocked
+  while Pong is active on the title screen.
 - **Miss the ball** (it passes your right paddle) → the mod throws a custom runtime
   exception (`PongLoseException`) on the render thread, the default crash handler
   writes a crash report — a full **practice report card** with your stats, **five
@@ -51,7 +52,7 @@ playable retro **Pong** match against an AI.
 ./gradlew.bat build
 ```
 
-The mod jar is produced at `build/libs/pong-launch-minigame-1.1.0.jar`.
+The mod jar is produced at `build/libs/pong-launch-minigame-1.2.2.jar`.
 
 ## Install
 
@@ -73,9 +74,9 @@ Copy the jar into your `.minecraft/mods` folder (client side only) and launch th
 - **Mouse control**: vanilla `MouseHandler.onMove` deliberately ignores cursor updates
   while an overlay is active, so the mod reads `glfwGetCursorPos` directly to steer the
   paddle on the loading screen.
-- **Win detection**: the main-menu condition is detected via `ScreenEvent.Opening`
-  (`net.minecraftforge.client.event.ScreenEvent.Opening`) when the opened screen is a
-  `TitleScreen` (`GuiOpenEvent` / `ScreenOpenEvent` do not exist in 1.20.1).
+- **Title screen handoff**: if the game loads before 20 seconds are up, Forge's
+  `ScreenEvent.Render.Pre` lets Pong take over drawing the title screen until
+  the challenge ends.
 - **Crash effect**: throwing an ordinary unchecked exception from the render thread lets
   the default crash handler produce the report — nothing is forged or rewritten.
 

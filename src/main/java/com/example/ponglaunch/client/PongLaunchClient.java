@@ -3,10 +3,7 @@ package com.example.ponglaunch.client;
 import com.example.ponglaunch.client.gui.PongGui;
 import net.minecraft.client.Minecraft;
 
-/**
- * Client-side holder so the mixin (render hook) and the event handlers
- * ({@code ScreenOpenEvent}, reload listener) share one {@link PongGui} instance.
- */
+/** Shares the startup Pong session between the loading overlay and title screen. */
 public final class PongLaunchClient {
 
     private static PongGui pongGui;

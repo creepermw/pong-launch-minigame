@@ -32,16 +32,16 @@ public final class PongLoseException extends RuntimeException {
 
     private static final Random RANDOM = new Random();
 
-    public PongLoseException(int hits, float ballSpeed, float survivalSeconds) {
-        super(buildMessage(hits, ballSpeed, survivalSeconds));
+    public PongLoseException(int hits, float maxBallSpeed, float survivalSeconds) {
+        super(buildMessage(hits, maxBallSpeed, survivalSeconds));
     }
 
-    private static String buildMessage(int hits, float ballSpeed, float survivalSeconds) {
-        return "You lost! The Pong ball escaped the right paddle and reached the window edge!\n"
+    private static String buildMessage(int hits, float maxBallSpeed, float survivalSeconds) {
+        return "You lost! The Pong ball escaped the right paddle!\n"
                 + "==================================================\n"
                 + "              【 练 习 成 绩 单 】\n"
                 + "  击球数 Hits      : " + hits + "\n"
-                + "  最高球速 Max spd : " + Math.round(ballSpeed) + "\n"
+                + "  最高球速 Max spd : " + Math.round(maxBallSpeed) + "\n"
                 + "  存活时间 Survived: " + String.format("%.1f", survivalSeconds) + "s\n"
                 + "  评级 Grade       : " + TROLL + "\n"
                 + "==================================================\n"

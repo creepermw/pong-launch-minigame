@@ -1,6 +1,5 @@
 package com.example.ponglaunch.mixin;
 
-import com.example.ponglaunch.PongLaunchMod;
 import com.example.ponglaunch.client.PongLaunchClient;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.server.packs.resources.ReloadInstance;
@@ -33,15 +32,8 @@ public abstract class ForgeLoadingOverlayMixin {
     @Final
     private ReloadInstance reload;
 
-    private static boolean loggedHook;
-
     @Inject(method = "render", at = @At("TAIL"), require = 1)
     private void pongLaunch$render(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick, CallbackInfo ci) {
-        if (!loggedHook) {
-            loggedHook = true;
-            PongLaunchMod.LOGGER.info("[Pong] Loading overlay render hook active.");
-        }
-        PongLaunchClient.pongGui().setLoadingProgress(this.reload.getActualProgress());
-        PongLaunchClient.pongGui().render(guiGraphics, partialTick);
+        PongLaunchClient.pongGui().renderLoading(guiGraphics, this.reload.getActualProgress());
     }
 }
